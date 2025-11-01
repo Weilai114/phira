@@ -37,15 +37,13 @@ jobs:
     - name: Add signing config to Cargo.toml
       run: |
         cd phira
-        cat >> Cargo.toml << 'EOF'
-
-[package.metadata.android.signing.release]
-path = "debug.keystore"
-password = "android"
-
-[package.metadata.android.signing.release.aliases]
-default = "androiddebugkey"
-EOF
+        echo '' >> Cargo.toml
+        echo '[package.metadata.android.signing.release]' >> Cargo.toml
+        echo 'path = "debug.keystore"' >> Cargo.toml
+        echo 'password = "android"' >> Cargo.toml
+        echo '' >> Cargo.toml
+        echo '[package.metadata.android.signing.release.aliases]' >> Cargo.toml
+        echo 'default = "androiddebugkey"' >> Cargo.toml
         
     - name: Build APK
       run: |
