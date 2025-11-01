@@ -39,11 +39,10 @@ jobs:
         cd phira
         echo '' >> Cargo.toml
         echo '[package.metadata.android.signing.release]' >> Cargo.toml
-        echo 'path = "debug.keystore"' >> Cargo.toml
-        echo 'password = "android"' >> Cargo.toml
-        echo '' >> Cargo.toml
-        echo '[package.metadata.android.signing.release.aliases]' >> Cargo.toml
-        echo 'default = "androiddebugkey"' >> Cargo.toml
+        echo 'keystore = "debug.keystore"' >> Cargo.toml
+        echo 'keystore_password = "android"' >> Cargo.toml
+        echo 'key_alias = "androiddebugkey"' >> Cargo.toml
+        echo 'key_password = "android"' >> Cargo.toml
         
     - name: Build APK
       run: |
