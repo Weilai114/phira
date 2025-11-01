@@ -34,10 +34,15 @@ jobs:
         cd phira
         keytool -genkey -v -keystore debug.keystore -alias androiddebugkey -storepass android -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
         
-    - name: Build APK
+    - name: Build APK with env variables
       run: |
         cd phira
         export ANDROID_SDK_ROOT=$ANDROID_HOME
+        # 设置签名环境变量
+        export CARGO_APK_KEYSTORE_PATH="debug.keystore"
+        export CARGO_APK_KEYSTORE_PASS="android"
+        export CARGO_APK_KEY_ALIAS="androiddebugkey" 
+        export CARGO_APK_KEY_PASS="android"
         cargo apk build --release
         
     - name: Upload APK
