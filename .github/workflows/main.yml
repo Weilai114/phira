@@ -1,66 +1,98 @@
 name: Build Android Phira
 
 on:
-  workflow_dispatch:    # 手动触发
-  push:                 # 代码推送时自动运行
+  workflow_dispatch:
+  push:
     branches: [ main, master ]
-  pull_request:         # 创建PR时自动运行  
+  pull_request:
     branches: [ main, master ]
 
 env:
   CARGO_TERM_COLOR: always
-  ANDROID_HOME: ${{github.workspace}}/android-sdk
-  ANDROID_NDK_HOME: ${{github.workspace}}/android-ndk-r27c
-  ANDROID_NDK_ROOT: ${{github.workspace}}/android-ndk-r27c
+  ANDROID_HOME: ${{ github.workspace }}/android-sdk
+  ANDROID_NDK_HOME: ${{ github.workspace }}/android-ndk
+  ANDROID_NDK_ROOT: ${{ github.workspace }}/android-ndk
 
 jobs:
   Build:
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v4.2.2
+    - name: Checkout code
+      uses: actions/checkout@v4
     
-    - run: |
+    - name: Install system dependencies
+      run: |
         sudo apt-get update
-        sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev libssl-dev pkg-config
-        sed -i '1d' prpr/src/lib.rs
+        sudo apt-get install -y \
+          build-essential \
+          curl \
+          wget \
+          unzip \
+          zip \
+          openjdk-11-jdk \
+          pkg-config \
+          libssl-dev
         
     - name: Download static-lib
       uses: suisei-cn/actions-download-file@v1.3.0
-      id: downlod-static-lib
       with:
         url: "https://teamflos.github.io/phira-docs/phira_build_guide/prpr-avc.zip"
         target: ./
 
-    - name: Set Up static-lib
+    - name: Extract static-lib
       run: |
-        unzip prpr-avc.zip -d ./
+        unzip -q prpr-avc.zip -d ./
 
-    - name: Install Android SDK Tools
+    - name: Setup Android SDK
       run: |
-        wget https://dl.google.com/android/repository/commandlinetools-linux-8512546_latest.zip
-        unzip commandlinetools-linux-8512546_latest.zip -d $ANDROID_HOME
-        echo y | $ANDROID_HOME/cmdline-tools/bin/sdkmanager --sdk_root=${ANDROID_HOME} "platform-tools" "build-tools;33.0.2" "platforms;android-35"
+        # 创建目录
+        mkdir -p $ANDROID_HOME
+        # 下载命令行工具
+        wget -q https://dl.google.com/android/repository/commandlinetools-linux-8512546_latest.zip
+        unzip -q commandlinetools-linux-8512546_latest.zip -d $ANDROID_HOME
+        mkdir -p $ANDROID_HOME/cmdline-tools/latest
+        mv $ANDROID_HOME/cmdline-tools/* $ANDROID_HOME/cmdline-tools/latest/
+        # 安装平台工具和构建工具
+        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "build-tools;33.0.2" "platforms;android-35"
 
-    - name: Install Android NDK
+    - name: Setup Android NDK
       run: |
-        wget https://googledownloads.cn/android/repository/android-ndk-r27c-linux.zip
-        unzip android-ndk-r27c-linux.zip -d ${{github.workspace}}
+        wget -q https://dl.google.com/android/repository/android-ndk-r27c-linux.zip
+        unzip -q android-ndk-r27c-linux.zip -d ${{ github.workspace }}
+        mv ${{ github.workspace }}/android-ndk-r27c $ANDROID_NDK_HOME
 
-    - name: Install Rust Toolchains
-      uses: actions-rs/toolchain@v1.0.6
+    - name: Setup Rust
+      uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
-        target: aarch64-linux-android
-    
+        targets: aarch64-linux-android
+        override: true
+
+    - name: Install cargo-ndk
+      run: |
+        cargo install cargo-ndk --version 2.8.0
+
+    - name: Configure Cargo for Android
+      run: |
+        # 设置 Android NDK 配置
+        echo "[target.aarch64-linux-android]" >> ~/.cargo/config.toml
+        echo "linker = \"$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang\"" >> ~/.cargo/config.toml
+        echo "ar = \"$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar\"" >> ~/.cargo/config.toml
+
     - name: Build for Android
       run: |
         cd phira
-        cargo install cargo-ndk
-        cargo ndk -t arm64-v8a -p 35 build --release
-    
+        # 尝试构建
+        cargo ndk -t arm64-v8a -p 35 build --release --verbose
+      env:
+        CC_aarch64_linux_android: "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang"
+        CXX_aarch64_linux_android: "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang++"
+        AR_aarch64_linux_android: "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
         name: android-build
         path: |
           target/aarch64-linux-android/release/libphira.so
+        retention-days: 7
