@@ -1,66 +1,65 @@
-name: Build Android APK
-on: [push]
+name: Build Android Phira
+
+on:
+  workflow_dispatch:
+
+
+env:
+  CARGO_TERM_COLOR: always
+  ANDROID_HOME: ${{github.workspace}}/android-sdk
+  ANDROID_NDK_HOME: ${{github.workspace}}/android-ndk-r27c
+  ANDROID_NDK_ROOT: ${{github.workspace}}/android-ndk-r27c
+
 jobs:
-  build:
-    runs-on: ubuntu-22.04
+  Build:
+
+    runs-on: ubuntu-20.04
+
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v4.2.2
     
-    - name: Install system dependencies
-      run: |
+    - run: |
         sudo apt-get update
-        sudo apt-get install -y pkg-config libssl-dev openjdk-11-jdk
+        sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev libssl-dev pkg-config
+        sed -i '1d' prpr/src/lib.rs
         
-    - name: Setup Android SDK manually
+    - name: Download static-lib
+      uses: suisei-cn/actions-download-file@v1.3.0
+      id: downlod-static-lib
+      with:
+        url: "https://teamflos.github.io/phira-docs/phira_build_guide/prpr-avc.zip"
+        target: ./
+
+    - name: Set Up static-lib
       run: |
-        wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
-        mkdir -p android-sdk/cmdline-tools
-        unzip -q commandlinetools-linux-9477386_latest.zip -d android-sdk/cmdline-tools
-        mv android-sdk/cmdline-tools/cmdline-tools android-sdk/cmdline-tools/latest
-        echo "ANDROID_HOME=$PWD/android-sdk" >> $GITHUB_ENV
-        echo "ANDROID_SDK_ROOT=$PWD/android-sdk" >> $GITHUB_ENV
-        
-    - name: Install Android Platform 30
+        unzip prpr-avc.zip -d ./
+
+    - name: Install Android SDK Tools
       run: |
-        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platforms;android-30" "build-tools;30.0.3" "platform-tools" || true
-        
-    - name: Setup Rust
+        wget https://dl.google.com/android/repository/commandlinetools-linux-8512546_latest.zip
+        unzip commandlinetools-linux-8512546_latest.zip -d $ANDROID_HOME
+        echo y | $ANDROID_HOME/cmdline-tools/bin/sdkmanager --sdk_root=${ANDROID_HOME} "platform-tools" "build-tools;33.0.2" "platforms;android-35"
+
+    - name: Install Android NDK
       run: |
-        rustup target add aarch64-linux-android
-        cargo install cargo-apk --version 0.9.7
-        
-    - name: Create debug keystore
-      run: |
-        cd phira
-        keytool -genkey -v -keystore debug.keystore -alias androiddebugkey -storepass android -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-        
-    - name: Add signing config to Cargo.toml
-      run: |
-        cd phira
-        echo '' >> Cargo.toml
-        echo '[package.metadata.android.signing.release]' >> Cargo.toml
-        echo 'path = "debug.keystore"' >> Cargo.toml
-        echo 'keystore_password = "android"' >> Cargo.toml
-        echo 'key_alias = "androiddebugkey"' >> Cargo.toml
-        echo 'key_password = "android"' >> Cargo.toml
-        
-    - name: Build APK
+        wget https://googledownloads.cn/android/repository/android-ndk-r27c-linux.zip
+        unzip android-ndk-r27c-linux.zip -d ${{github.workspace}}
+
+    - name: Install Rust Toolchains
+      uses: actions-rs/toolchain@v1.0.6
+      with:
+        toolchain: stable
+        target: aarch64-linux-android
+    
+    - name: Build for Android
       run: |
         cd phira
-        export ANDROID_SDK_ROOT=$ANDROID_HOME
-        cargo apk build --release
-        
-    - name: Find and list APK files
-      run: |
-        find . -name "*.apk" -type f | head -20
-        echo "=== Checking common paths ==="
-        ls -la phira/target/ 2>/dev/null || echo "No phira/target/"
-        ls -la target/ 2>/dev/null || echo "No target/"
-        ls -la . 2>/dev/null || echo "No current dir"
-        
-    - name: Upload APK
+        cargo install cargo-ndk
+        cargo ndk -t arm64-v8a -p 35 build --release
+    
+    - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: phira-mod-apk
-        path: "**/*.apk"
-        retention-days: 7
+        name: android-build
+        path: |
+          target/aarch64-linux-android/release/libphira.so
