@@ -15,7 +15,7 @@ env:
 
 jobs:
   Build:
-    runs-on: ubuntu-latest  # 使用最新的 Ubuntu 作为宿主系统
+    runs-on: ubuntu:22.04  # 使用最新的 Ubuntu 作为宿主系统
     container:
       image: ubuntu:20.04   # 在容器中使用 Ubuntu 20.04 环境
     steps:
