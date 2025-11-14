@@ -546,7 +546,7 @@ impl Judge {
                         continue;
                     }
                     let dt = if matches!(note.kind, NoteKind::Flick | NoteKind::Drag) {
-                        dt + 0.8
+                        dt + 0.22
                     } else {
                         dt
                     };
