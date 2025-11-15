@@ -17,9 +17,9 @@ use std::{cell::RefCell, collections::HashMap, num::FpCategory};
 use tracing::debug;
 
 pub const FLICK_SPEED_THRESHOLD: f32 = 0.8;
-pub const LIMIT_PERFECT: f32 = 0.08;
-pub const LIMIT_GOOD: f32 = 0.16;
-pub const LIMIT_BAD: f32 = 0.22;
+pub const LIMIT_PERFECT: f32 = 0.02;
+pub const LIMIT_GOOD: f32 = 0.4;
+pub const LIMIT_BAD: f32 = 0.12;
 pub const UP_TOLERANCE: f32 = 0.05;
 pub const DIST_FACTOR: f32 = 0.2;
 
