@@ -2,6 +2,10 @@ name: Build Android Phira
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
 
 env:
   CARGO_TERM_COLOR: always
@@ -11,22 +15,35 @@ env:
 
 jobs:
   Build:
-    runs-on: ubuntu-22.04  # 明确指定 22.04
+    runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v4.2.2
     
-    - run: |
+    - name: Install System Dependencies
+      run: |
         sudo apt-get update
+        # 基础构建工具（必须）
+        sudo apt-get install -y \
+          build-essential \
+          pkg-config \
+          libssl-dev \
+          patchelf \
+          cmake \
+          ninja-build \
+          wget \
+          unzip \
+          zip
+        
+        # GUI 相关包（尝试安装，失败也继续）
         sudo apt-get install -y \
           libgtk-3-dev \
-          libwebkit2gtk-4.0-dev \
+          libwebkit2gtk-4.1-dev \
           libayatana-appindicator3-dev \
           librsvg2-dev \
-          libasound2-dev \
-          libssl-dev \
-          pkg-config \
-          build-essential
+          libasound2-dev || echo "GUI packages installation completed with warnings"
+        
+        # 执行项目特定的修改
         sed -i '1d' prpr/src/lib.rs
         
     - name: Download static-lib
@@ -44,7 +61,10 @@ jobs:
       run: |
         wget https://dl.google.com/android/repository/commandlinetools-linux-8512546_latest.zip
         unzip commandlinetools-linux-8512546_latest.zip -d $ANDROID_HOME
-        echo y | $ANDROID_HOME/cmdline-tools/bin/sdkmanager --sdk_root=${ANDROID_HOME} "platform-tools" "build-tools;33.0.2" "platforms;android-35"
+        echo y | $ANDROID_HOME/cmdline-tools/bin/sdkmanager --sdk_root=${ANDROID_HOME} \
+          "platform-tools" \
+          "build-tools;33.0.2" \
+          "platforms;android-35"
 
     - name: Install Android NDK
       run: |
@@ -56,11 +76,22 @@ jobs:
       with:
         toolchain: stable
         target: aarch64-linux-android
+
+    - name: Setup Rust Cache
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
     
     - name: Build for Android
       run: |
         cd phira
-        cargo install cargo-ndk
+        cargo install cargo-ndk --locked
         cargo ndk -t arm64-v8a -p 35 build --release
     
     - name: Upload Artifact
@@ -69,3 +100,4 @@ jobs:
         name: android-build
         path: |
           target/aarch64-linux-android/release/libphira.so
+        retention-days: 7
