@@ -3,6 +3,7 @@ name: Build Android Phira
 on:
   workflow_dispatch:
 
+
 env:
   CARGO_TERM_COLOR: always
   ANDROID_HOME: ${{github.workspace}}/android-sdk
@@ -17,18 +18,10 @@ jobs:
     steps:
     - uses: actions/checkout@v4.2.2
     
-    - name: Install Dependencies
-      run: |
+    - run: |
         sudo apt-get update
-        sudo apt-get install -y \
-          libgtk-3-dev \
-          libwebkit2gtk-4.0-dev \
-          libayatana-appindicator3-dev \
-          librsvg2-dev \
-          libasound2-dev \
-          libssl-dev \
-          pkg-config \
-          build-essential
+        sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev libssl-dev pkg-config
+        sed -i '1d' prpr/src/lib.rs
         
     - name: Download static-lib
       uses: suisei-cn/actions-download-file@v1.3.0
