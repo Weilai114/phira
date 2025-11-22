@@ -581,7 +581,7 @@ impl Judge {
                             judgements.push((Judgement::Bad, line_id, id, None));
                         }
                     }
-                } else {
+                } else if flick {
                     line.notes[id as usize].judge = JudgeStatus::PreJudge;
                     if let Some(tracker) = self.trackers.get_mut(&touch.id) {
                         tracker.flicked = false;
