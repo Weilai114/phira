@@ -597,9 +597,16 @@ impl Judge {
                     }
                 } else {
                     // flick
-                    line.notes[id as usize].judge = JudgeStatus::PreJudge;
-                    if let Some(tracker) = self.trackers.get_mut(&touch.id) {
-                        tracker.flicked = false;
+                    let note = &mut line.notes[id as usize];
+                    match note.kind {
+                        NoteKind::Flick | NoteKind::Drag => {
+                            note.judge = JudgeStatus::PreJudge;
+                            if let Some(tracker) = self.trackers.get_mut(&touch.id) {
+                                tracker.flicked = false;
+                            }
+                        }
+                        NoteKind::Click | NoteKind::Hold { .. } => {
+                        }
                     }
                 }
             }
