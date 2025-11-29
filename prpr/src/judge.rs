@@ -17,7 +17,7 @@ use std::{cell::RefCell, collections::HashMap, num::FpCategory};
 use tracing::debug;
 
 pub const FLICK_SPEED_THRESHOLD: f32 = 0.8;
-pub const LIMIT_PERFECT: f32 = 0.04;
+pub const LIMIT_PERFECT: f32 = 0.06;
 pub const LIMIT_GOOD: f32 = 0.075;
 pub const LIMIT_BAD: f32 = 0.22;
 pub const UP_TOLERANCE: f32 = 0.05;
@@ -529,7 +529,6 @@ impl Judge {
                     if dt >= closest.3 {
                         break;
                     }
-                    let key = dt + (dist / NOTE_WIDTH_RATIO_BASE - 1.).max(0.) * DIST_FACTOR;
                     let dt = if dt < 0. { (dt + EARLY_OFFSET).min(0.).abs() } else { dt };
                     let x = &mut note.object.translation.0;
                     x.set_time(t);
@@ -551,6 +550,7 @@ impl Judge {
                     } else {
                         dt
                     };
+                    let key = dt + (dist / NOTE_WIDTH_RATIO_BASE - 1.).max(0.) * DIST_FACTOR;
                     if key < closest.3 {
                         closest = (Some((line_id, *id)), dist, dt, key);
                     }
