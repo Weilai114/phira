@@ -363,7 +363,7 @@ impl Judge {
             self.auto_play_update(res, chart);
             return;
         }
-        const X_DIFF_MAX: f32 = 0.21 / (16. / 9.) * 2.;
+        const X_DIFF_MAX: f32 = 0.21 / (16. / 9.) * 2.2;
         let spd = res.config.speed;
 
         #[cfg(not(target_os = "windows"))]
