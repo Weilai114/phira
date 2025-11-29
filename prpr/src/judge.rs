@@ -522,12 +522,14 @@ impl Judge {
                     if !matches!(note.judge, JudgeStatus::NotJudged | JudgeStatus::PreJudge) {
                         continue;
                     }
-                    if !click && matches!(note.kind, NoteKind::Click | NoteKind::Hold { .. }) {
-                        if flick && matches!(note.kind, NoteKind::Flick | NoteKind::Drag) {
-                        } else {
-                            continue;
-                        }
-                    }
+                    // if !click && matches!(note.kind, NoteKind::Click | NoteKind::Hold { .. }) {
+                    //     if flick && matches!(note.kind, NoteKind::Flick | NoteKind::Drag) {
+                    //     } else {
+                    //         continue;
+                    //     }
+                    // }
+                    if matches!(note.judge, JudgeStatus::Judged) {
+                    continue;
                     let dt = (note.time - t) / spd;
                     if dt >= closest.3 {
                         break;
