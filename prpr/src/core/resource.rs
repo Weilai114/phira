@@ -4,14 +4,11 @@ use crate::{
     ext::{create_audio_manger, nalgebra_to_glm, SafeTexture},
     fs::FileSystem,
     info::ChartInfo,
-    particle::{AtlasConfig, ColorCurve, Emitter, EmitterConfig},
+    particle::{AtlasConfig, ColorCurve, Emitter, EmitterConfig, ParticleShape},
 };
 use anyhow::{bail, Context, Result};
 use macroquad::prelude::*;
-use miniquad::{
-    gl::{GLuint, GL_LINEAR},
-    Texture, TextureWrap,
-};
+use miniquad::{gl::{GLuint, GL_LINEAR}, Texture, TextureWrap};
 use sasa::{AudioClip, AudioManager, Sfx};
 use serde::Deserialize;
 use std::{
@@ -37,13 +34,23 @@ fn default_duration() -> f32 {
 }
 
 #[inline]
-fn default_perfect() -> u32 {
-    0xe1ffec9f
+fn default_perfect_fx() -> (f32, f32, f32, f32) {
+    (1.0, 0.9, 0.65, 0.9)
 }
 
 #[inline]
-fn default_good() -> u32 {
-    0xebb4e1ff
+fn default_good_fx() -> (f32, f32, f32, f32) {
+    (0.70, 0.9, 1.0, 0.9)
+}
+
+#[inline]
+fn default_perfect_line() -> (f32, f32, f32, f32) {
+    (1.0, 1.0, 0.7, 1.0)
+}
+
+#[inline]
+fn default_good_line() -> (f32, f32, f32, f32) {
+    (0.65, 0.94, 1.0, 1.0)
 }
 
 #[inline]
@@ -67,8 +74,12 @@ pub struct ResPackInfo {
     pub hit_fx_rotate: bool,
     #[serde(default)]
     pub hide_particles: bool,
+    #[serde(default)]
+    pub circle_particles: bool,
     #[serde(default = "default_tinted")]
     pub hit_fx_tinted: bool,
+    #[serde(default = "default_tinted")]
+    pub line_tinted: bool,
 
     pub hold_atlas: (u32, u32),
     #[serde(rename = "holdAtlasMH")]
@@ -81,10 +92,15 @@ pub struct ResPackInfo {
     #[serde(default)]
     pub hold_compact: bool,
 
-    #[serde(default = "default_perfect")]
-    pub color_perfect: u32,
-    #[serde(default = "default_good")]
-    pub color_good: u32,
+    #[serde(default = "default_perfect_fx")]
+    pub color_perfect_fx: (f32, f32, f32, f32),
+    #[serde(default = "default_good_fx")]
+    pub color_good_fx: (f32, f32, f32, f32),
+
+    #[serde(default = "default_perfect_line")]
+    pub color_perfect_line: (f32, f32, f32, f32),
+    #[serde(default = "default_good_line")]
+    pub color_good_line: (f32, f32, f32, f32),
 
     #[serde(default)]
     pub description: String,
@@ -93,7 +109,7 @@ pub struct ResPackInfo {
 impl ResPackInfo {
     pub fn fx_perfect(&self) -> Color {
         if self.hit_fx_tinted {
-            Color::from_hex(self.color_perfect)
+            Color::new(self.color_perfect_fx.0, self.color_perfect_fx.1, self.color_perfect_fx.2, self.color_perfect_fx.3)
         } else {
             WHITE
         }
@@ -101,7 +117,23 @@ impl ResPackInfo {
 
     pub fn fx_good(&self) -> Color {
         if self.hit_fx_tinted {
-            Color::from_hex(self.color_good)
+            Color::new(self.color_good_fx.0, self.color_good_fx.1, self.color_good_fx.2, self.color_good_fx.3)
+        } else {
+            WHITE
+        }
+    }
+
+    pub fn line_perfect(&self) -> Color {
+        if self.line_tinted {
+            Color::new(self.color_perfect_line.0, self.color_perfect_line.1, self.color_perfect_line.2, self.color_perfect_line.3)
+        } else {
+            WHITE
+        }
+    }
+
+    pub fn line_good(&self) -> Color {
+        if self.line_tinted {
+            Color::new(self.color_good_line.0, self.color_good_line.1, self.color_good_line.2, self.color_good_line.3)
         } else {
             WHITE
         }
@@ -178,8 +210,7 @@ impl ResourcePack {
     pub async fn load(fs: &mut dyn FileSystem) -> Result<Self> {
         macro_rules! load_tex {
             ($path:literal) => {
-                SafeTexture::from(image::load_from_memory(&fs.load_file($path).await.with_context(|| format!("Missing {}", $path))?)?)
-                    .with_filter(GL_LINEAR)
+                SafeTexture::from(image::load_from_memory(&fs.load_file($path).await.with_context(|| format!("Missing {}", $path))?)?).with_filter(GL_LINEAR)
             };
         }
         let info: ResPackInfo = serde_yaml::from_str(&String::from_utf8(fs.load_file("info.yml").await.context("Missing info.yml")?)?)?;
@@ -223,29 +254,11 @@ impl ResourcePack {
 
         macro_rules! load_clip {
             ($path:literal) => {
-                if let Some(sfx) = fs
-                    .load_file(format!("{}.ogg", $path).as_str())
-                    .await
-                    .ok()
-                    .map(|it| AudioClip::new(it))
-                    .transpose()?
-                {
+                if let Some(sfx) = fs.load_file(format!("{}.ogg", $path).as_str()).await.ok().map(|it| AudioClip::new(it)).transpose()? {
                     sfx
-                } else if let Some(sfx) = fs
-                    .load_file(format!("{}.wav", $path).as_str())
-                    .await
-                    .ok()
-                    .map(|it| AudioClip::new(it))
-                    .transpose()?
-                {
+                } else if let Some(sfx) = fs.load_file(format!("{}.wav", $path).as_str()).await.ok().map(|it| AudioClip::new(it)).transpose()? {
                     sfx
-                } else if let Some(sfx) = fs
-                    .load_file(format!("{}.mp3", $path).as_str())
-                    .await
-                    .ok()
-                    .map(|it| AudioClip::new(it))
-                    .transpose()?
-                {
+                } else if let Some(sfx) = fs.load_file(format!("{}.mp3", $path).as_str()).await.ok().map(|it| AudioClip::new(it)).transpose()? {
                     sfx
                 } else {
                     AudioClip::new(load_file(format!("{}.ogg", $path).as_str()).await?)?
@@ -267,10 +280,10 @@ impl ResourcePack {
 }
 
 pub struct ParticleEmitter {
-    pub scale: f32,
-    pub emitter: Emitter,
-    pub emitter_square: Emitter,
-    pub hide_particles: bool,
+    scale: f32,
+    emitter: Emitter,
+    emitter_square: Emitter,
+    hide_particles: bool,
 }
 
 impl ParticleEmitter {
@@ -282,6 +295,11 @@ impl ParticleEmitter {
             mid.a *= 0.7;
             end.a = 0.;
             ColorCurve { start, mid, end }
+        };
+        let shape = if res_pack.info.circle_particles {
+            ParticleShape::Circle { subdivisions: 16 }
+        } else {
+            ParticleShape::Rectangle { aspect_ratio: 1.0 }
         };
         let mut res = Self {
             scale: res_pack.info.hit_fx_scale,
@@ -308,6 +326,7 @@ impl ParticleEmitter {
                 initial_velocity: 2.5 * scale,
                 initial_velocity_randomness: 1. / 10.,
                 linear_accel: -6. / 1.,
+                shape,
                 colors_curve,
                 ..Default::default()
             }),
@@ -344,7 +363,7 @@ pub struct NoteBuffer(BTreeMap<(i8, GLuint), Vec<(Vec<Vertex>, Vec<u16>)>>);
 impl NoteBuffer {
     pub fn push(&mut self, key: (i8, GLuint), vertices: [Vertex; 4]) {
         let meshes = self.0.entry(key).or_default();
-        if meshes.last().is_none_or(|it| it.0.len() + 4 > MAX_SIZE * 4) {
+        if meshes.last().map_or(true, |it| it.0.len() + 4 > MAX_SIZE * 4) {
             meshes.push(Default::default());
         }
         let last = meshes.last_mut().unwrap();
