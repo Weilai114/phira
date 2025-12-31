@@ -24,6 +24,7 @@ pub const LIMIT_BAD: f32 = 0.18;
 pub const UP_TOLERANCE: f32 = 0.05;
 pub const DIST_FACTOR: f32 = 0.2;
 const LATE_OFFSET: f32 = 0.13;
+const TAP_JUDGE_OFFSET: f32 = -0.01;  // tap判定偏移量，默认-10ms，抵消Phira的奇怪判定区间延后
 
 #[derive(Debug, Clone)]
 pub enum HitSound {
@@ -129,13 +130,6 @@ impl FlickTracker {
             if self.stopped && !self.flicked {
                 self.flicked = delta.magnitude() / dt >= self.threshold * 2.;
             }
-            // if speed < self.threshold || self.stopped {
-            // self.stopped = delta.magnitude() / dt < self.threshold * 5.;
-            // self.flicked = self.threshold <= speed;
-            // if self.flicked {
-            // warn!("new flick!");
-            // }
-            // }
         }
         self.last_delta = Some(delta.normalize());
         self.last_time = time;
@@ -524,7 +518,7 @@ impl Judge {
                     if !click && matches!(note.kind, NoteKind::Click | NoteKind::Hold { .. }) {
                         continue;
                     }
-                    let dt = (note.time - t) / spd;
+                    let dt = (note.time - t) / spd - TAP_JUDGE_OFFSET;
                     if dt.abs() >= closest.3.abs() {
                         break;
                     }
@@ -607,7 +601,7 @@ impl Judge {
                             NoteKind::Hold { .. } => {
                                 note.hitsound.play(res);
                                 self.judgements.borrow_mut().push((t, line_id as _, id, Err(dt <= LIMIT_PERFECT)));
-                                note.judge = JudgeStatus::Hold(dt <= LIMIT_PERFECT, t, t, false, f32::INFINITY);
+                                note.judge = JudgeStatus::Hold(dt <= LIMIT_PERFECT, t, (t - note.time) / spd, false, f32::INFINITY);
                             }
                             _ => unreachable!(),
                         };
@@ -648,7 +642,7 @@ impl Judge {
                 .min_by_key(|(line_id, id)| chart.lines[*line_id].notes[*id as usize].time.not_nan())
             {
                 let note = &mut chart.lines[line_id].notes[id as usize];
-                let dt = (t - note.time).abs() / spd;
+                let dt = ((t - note.time) / spd + TAP_JUDGE_OFFSET).abs();
                 if dt <= if matches!(note.kind, NoteKind::Click) { LIMIT_BAD } else { LIMIT_GOOD } {
                     match note.kind {
                         NoteKind::Click => {
